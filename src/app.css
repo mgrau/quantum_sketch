@@ -1,0 +1,485 @@
+:root {
+  --paper: #f6f7f9;
+  --panel: #ffffff;
+  --panel-2: #fbfcfd;
+  --ink: #1a1e26;
+  --muted: #5b6472;
+  --line: #dee2e9;
+  --line-strong: #cbd2dd;
+  --accent: #1b3fae;
+  --accent-ink: #ffffff;
+  --accent-soft: #e9edfb;
+  --danger: #c0392b;
+  /* white graph paper: uniform thin blue lines */
+  --grid: rgba(37, 99, 235, 0.15);
+  --shadow-sm: 0 1px 2px rgba(20, 24, 40, 0.06);
+  --shadow: 0 1px 2px rgba(20, 24, 40, 0.06), 0 6px 18px rgba(20, 24, 40, 0.07);
+  --lift: 0 2px 4px rgba(20, 24, 40, 0.08), 0 10px 22px rgba(20, 24, 40, 0.12);
+  --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+  --sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+/* the `hidden` attribute must win over class display rules (.source, .figure) */
+[hidden] {
+  display: none !important;
+}
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+/* Fit the whole app to the visible viewport; no page scrolling (dvh tracks the
+   mobile toolbar). Panes scroll inside themselves, the page never does. */
+@supports (height: 100dvh) {
+  html,
+  body {
+    height: 100dvh;
+  }
+}
+body {
+  font-family: var(--sans);
+  color: var(--ink);
+  background: var(--paper);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+.app {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+/* ---- top bar ---- */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.brand .mark {
+  color: var(--accent);
+  flex: none;
+}
+.brand .mark {
+  display: flex;
+  align-items: center;
+}
+.brand .mark svg {
+  display: block;
+  height: 44px;
+  width: auto;
+}
+.brand h1 {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 1.28rem;
+  letter-spacing: 0.01em;
+  margin: 0;
+  line-height: 1.05;
+}
+.brand p {
+  margin: 0.1rem 0 0;
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+.actions {
+  margin-left: auto;
+  display: flex;
+  gap: 0.45rem;
+}
+button {
+  font-family: var(--sans);
+  font-size: 0.82rem;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 0.42rem 0.7rem;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, transform 0.06s, box-shadow 0.12s;
+}
+button:hover {
+  background: var(--panel-2);
+  border-color: var(--muted);
+}
+button:active {
+  transform: translateY(1px);
+}
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+  transform: none;
+}
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+button[aria-pressed='true'] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+button.primary {
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+button.primary:hover {
+  filter: brightness(1.06);
+  background: var(--accent);
+}
+
+/* ---- work area ---- */
+.work {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-height: 0;
+}
+@media (min-width: 820px) {
+  .work {
+    grid-template-columns: 15.5rem 1fr;
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .palette {
+    order: -1;
+  }
+}
+
+/* ---- stage ---- */
+.stage {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  padding: 1rem;
+  gap: 0.6rem;
+}
+.canvas {
+  position: relative;
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background:
+    linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0 / 24px 24px,
+    #ffffff;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  overflow: auto;
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+.canvas.drop {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent), var(--shadow);
+}
+.figure {
+  display: grid;
+  place-items: center;
+  cursor: grab;
+  touch-action: none;
+}
+.figure:active {
+  cursor: grabbing;
+}
+.figure svg {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: min(100%, 560px);
+  max-height: 52vh;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  touch-action: none;
+}
+.hint {
+  max-width: 28rem;
+  text-align: center;
+  text-wrap: balance;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+.hint b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.hint .keys {
+  color: var(--accent);
+  font-weight: 700;
+}
+.source {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--muted);
+  padding: 0.15rem 0.2rem;
+  min-height: 1.4em;
+}
+.source .tag {
+  font-family: var(--sans);
+  font-size: 0.6rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 0.1rem 0.35rem;
+  flex: none;
+}
+.source code {
+  color: var(--ink);
+  white-space: pre;
+  overflow-x: auto;
+}
+
+/* ---- palette ---- */
+.palette {
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+  padding: 0.7rem 0.85rem;
+  display: flex;
+  flex-direction: row;
+  gap: 1.1rem;
+  overflow-x: auto;
+}
+@media (min-width: 820px) {
+  .palette {
+    border-top: none;
+    border-right: 1px solid var(--line);
+    flex-direction: column;
+    gap: 1.15rem;
+    overflow-x: visible;
+    overflow-y: auto;
+  }
+}
+.group {
+  flex: none;
+}
+.group h2 {
+  font-family: var(--sans);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 0.5rem;
+}
+.tiles {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.5rem;
+}
+@media (min-width: 820px) {
+  .tiles {
+    flex-wrap: wrap;
+  }
+}
+.tile {
+  flex: none;
+  width: 60px;
+  height: 60px;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  place-items: center;
+  gap: 0.1rem;
+  padding: 0.3rem;
+  background: var(--panel-2);
+  border: 1px solid var(--line-strong);
+  border-radius: 11px;
+  box-shadow: var(--shadow-sm);
+  cursor: grab;
+  transition: transform 0.08s, box-shadow 0.12s, border-color 0.12s;
+  touch-action: manipulation;
+}
+.tile:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--lift);
+  border-color: var(--accent);
+}
+.tile:active {
+  cursor: grabbing;
+  transform: translateY(0) scale(0.97);
+}
+.tile:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.tile .face {
+  display: grid;
+  place-items: center;
+  height: 34px;
+  pointer-events: none;
+}
+.tile .face svg {
+  max-width: 46px;
+  max-height: 32px;
+  height: auto;
+  width: auto;
+}
+.tile .cap {
+  font-size: 0.58rem;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  pointer-events: none;
+  white-space: nowrap;
+}
+/* gates are placed by dragging onto a wire, so they claim the pointer */
+.tile.gate {
+  touch-action: none;
+}
+.tile.glyph .face {
+  font-family: var(--serif);
+  font-size: 1.7rem;
+  color: var(--accent);
+  line-height: 1;
+}
+.tile.term {
+  border-style: dashed;
+}
+.tile.term.armed {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  border-style: solid;
+}
+.tile.erase .face {
+  font-size: 1.4rem;
+  color: var(--muted);
+}
+
+/* ---- the block being carried (shows the actual block) ---- */
+.carry {
+  position: fixed;
+  z-index: 30;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -150%);
+  pointer-events: none;
+  display: grid;
+  place-items: center;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 5px 7px;
+  background: var(--panel);
+  border: 1.5px solid var(--accent);
+  border-radius: 11px;
+  box-shadow: var(--lift);
+}
+.carry svg {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 46px;
+  max-height: 38px;
+}
+.carry .glyph {
+  font-family: var(--serif);
+  font-size: 1.6rem;
+  line-height: 1;
+  color: var(--accent);
+}
+.carry.removing {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: 0.74rem;
+  padding: 0.3rem 0.6rem;
+}
+
+/* ---- toast ---- */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1.1rem;
+  transform: translateX(-50%) translateY(1rem);
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 0.82rem;
+  padding: 0.5rem 0.85rem;
+  border-radius: 9px;
+  box-shadow: var(--lift);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s, transform 0.18s;
+  z-index: 40;
+}
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ---- mobile ---- */
+@media (max-width: 819px) {
+  .topbar {
+    padding: 0.45rem 0.65rem;
+    gap: 0.5rem;
+  }
+  .brand h1 {
+    font-size: 1.05rem;
+  }
+  .brand .mark svg {
+    height: 36px;
+    width: auto;
+  }
+  .actions {
+    gap: 0.3rem;
+  }
+  .actions button {
+    font-size: 0.72rem;
+    padding: 0.34rem 0.5rem;
+    border-radius: 7px;
+  }
+  #notation {
+    display: none; /* no notation button on mobile */
+  }
+  .stage {
+    padding: 0.55rem;
+    gap: 0.35rem;
+  }
+  .palette {
+    padding: 0.5rem 0.6rem 0.7rem;
+    gap: 0.9rem;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+  }
+  .palette::-webkit-scrollbar {
+    height: 9px;
+  }
+  .palette::-webkit-scrollbar-thumb {
+    background: var(--line-strong);
+    border-radius: 5px;
+  }
+  .palette::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  /* a horizontal swipe scrolls the palette; a tap adds, a vertical drag places */
+  .tile,
+  .tile.gate {
+    touch-action: pan-x;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}

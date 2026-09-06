@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <title>Quantum Sketch</title>
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="mark" id="logo" aria-hidden="true"></span>
+          <div>
+            <h1>Quantum Sketch</h1>
+          </div>
+        </div>
+        <div class="actions">
+          <button id="notation" title="Show the text notation" aria-pressed="false">Notation</button>
+          <button id="undo" title="Undo the last change" disabled>Undo</button>
+          <button id="clear" title="Start over" disabled>Clear</button>
+          <button id="copy" class="primary" title="Copy the diagram as a PNG" disabled>Copy PNG</button>
+        </div>
+      </header>
+
+      <div class="work">
+        <section class="stage">
+          <div class="canvas" id="canvas">
+            <div class="figure" id="figure" draggable="true" hidden></div>
+            <p class="hint" id="hint">
+              <b>Drag</b> qubits and gates onto the paper. <b>Click a qubit</b> to flip it, or a gate
+              to cycle its control ports. Drop <span class="keys">|</span> for a superposition, or drag
+              a block away to delete. Drag the figure out, or Copy&nbsp;PNG.
+            </p>
+          </div>
+          <div class="source" id="source-pane" hidden>
+            <span class="tag">notation</span>
+            <code id="src">—</code>
+          </div>
+        </section>
+
+        <aside class="palette" aria-label="Blocks">
+          <div class="group">
+            <h2>Qubits</h2>
+            <div class="tiles" id="qubits"></div>
+          </div>
+          <div class="group">
+            <h2>Gates</h2>
+            <div class="tiles" id="gates"></div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <div class="carry" id="carry" hidden></div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
