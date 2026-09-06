@@ -5,13 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:https": "HTTPS=1 vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "node tests/e2e.mjs",
+    "check": "npm run typecheck && npm test"
   },
   "dependencies": {
     "misty-states": "file:../misty_states"
   },
   "devDependencies": {
+    "@types/node": "^22.20.1",
     "@vitejs/plugin-basic-ssl": "^2.3.0",
     "playwright": "^1.63.0",
     "typescript": "^5.9.3",

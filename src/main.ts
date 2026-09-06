@@ -102,7 +102,17 @@ function svgWithSource(): string {
   return embedSvgMeta(render(source, { check: false, background: false }).svg, { source, name: 'Quantum Sketch' })
 }
 
+/**
+ * The drag-out PNG, baked a beat after the drawing settles.
+ *
+ * Only ever once per source. `draw()` runs on every pointer move so the preview
+ * can follow the finger, and rasterising there meant re-rendering and re-encoding
+ * the *committed* figure dozens of times a drag for a byte-identical result.
+ */
+let baked = '' // the source pngReady was baked from, so the work is done once
 function bakePng() {
+  if (source === baked) return
+  baked = source
   pngReady = null
   if (!source) return
   const forSrc = source
@@ -110,6 +120,8 @@ function bakePng() {
     .then((url) => {
       if (source === forSrc) pngReady = { source: forSrc, url }
     })
+    // A failed bake leaves `pngReady` null, which refuses the drag-out rather
+    // than handing over a stale image. No retry: the same source would fail again.
     .catch(() => {})
 }
 
@@ -130,11 +142,18 @@ function qubitUnder(e: PointerEvent): QubitSpot | undefined {
 }
 // A placed separator has no spot; synthesise one midway between the qubits it divides.
 type SepSpot = { at: number; cx: number; cy: number; size: number }
+/** True where this offset sits inside a quoted label, whose `|` is not a separator. */
+function quoted(src: string, at: number): boolean {
+  const from = src.lastIndexOf('\n', at) + 1
+  let quotes = 0
+  for (let i = from; i < at; i++) if (src[i] === '"') quotes++
+  return quotes % 2 === 1
+}
 function separatorSpots(): SepSpot[] {
   const spots = result?.qubitSpots ?? []
   const out: SepSpot[] = []
   for (let i = 0; i < source.length; i++) {
-    if (source[i] !== '|') continue
+    if (source[i] !== '|' || quoted(source, i)) continue
     let left: QubitSpot | undefined
     let right: QubitSpot | undefined
     for (const s of spots) {
@@ -209,13 +228,14 @@ function wireFromSpots(spots: QubitSpot[], x: number): number {
 // ---------- one carry system for every block ----------
 const GM = { qubit: 12, pipeWidth: 14, colGap: 10, gateHeight: 24, fontSize: 11 } // gate-swatch metrics
 type StateCarry =
-  | { type: 'add'; value: QubitValue; x0: number; y0: number; moved: boolean; label: string }
+  | { type: 'add'; value: QubitValue; x0: number; y0: number; moved: boolean }
   | { type: 'sep'; x0: number; y0: number; moved: boolean }
   | { type: 'pick'; spot: QubitSpot; x0: number; y0: number; moved: boolean }
   | { type: 'pickSep'; at: number; x0: number; y0: number; moved: boolean }
-  | { type: 'gate'; drop: Droppable; head: string; face: string; x0: number; y0: number; moved: boolean }
-  | { type: 'pickGate'; gate: Gate; head: string; x0: number; y0: number; moved: boolean }
+  | { type: 'gate'; drop: Droppable; face: string; x0: number; y0: number; moved: boolean }
+  | { type: 'pickGate'; gate: Gate; x0: number; y0: number; moved: boolean }
 let carry: StateCarry | null = null
+let carryId = -1 // the pointer that owns the carry; a second finger is ignored
 let frozen: { spots: QubitSpot[]; inv: DOMMatrix | null; geo: DropGeo | null; doc: CircuitDoc | null } | null = null
 let carryFace = '' // the block being dragged, drawn, so you can see it in hand
 
@@ -260,11 +280,13 @@ const hideChip = () => {
 }
 
 function startCarry(c: StateCarry, e: PointerEvent, doc?: CircuitDoc) {
+  if (carry) return // one block at a time: a second finger does not start another
   // A press on the figure must not also start a native image drag; a press on a
   // palette tile must NOT preventDefault, so a horizontal touch can still scroll.
   if (c.type === 'pick' || c.type === 'pickSep' || c.type === 'pickGate') e.preventDefault()
   slop = e.pointerType === 'touch' ? 12 : 5
   carry = c
+  carryId = e.pointerId
   exporting = false
   let parsed: CircuitDoc | null = doc ?? null
   if (!parsed && source) {
@@ -283,20 +305,29 @@ function startCarry(c: StateCarry, e: PointerEvent, doc?: CircuitDoc) {
   carryFace = faceOf(c)
   showChip(e)
   window.addEventListener('pointermove', onMove)
-  window.addEventListener('pointerup', onUp, { once: true })
+  window.addEventListener('pointerup', onUp)
   window.addEventListener('pointercancel', onCancel)
   window.addEventListener('keydown', onKey)
 }
 
-// A touch that turns into a scroll cancels the pointer; drop the carry cleanly.
-function onCancel() {
+/** Put the carried block down and let go of every listener, whatever ended it. */
+function releaseCarry(): StateCarry | null {
+  const c = carry
   window.removeEventListener('pointermove', onMove)
   window.removeEventListener('pointerup', onUp)
   window.removeEventListener('pointercancel', onCancel)
   window.removeEventListener('keydown', onKey)
   carry = null
-  dragPreview = null
+  carryId = -1
   hideChip()
+  return c
+}
+
+// A touch that turns into a scroll cancels the pointer; drop the carry cleanly.
+function onCancel(e: PointerEvent) {
+  if (e.pointerId !== carryId) return
+  releaseCarry()
+  dragPreview = null
   draw()
 }
 
@@ -334,7 +365,7 @@ function gateEditAt(e: PointerEvent, drop: Droppable | null, gate: Gate | null):
 
 function onMove(e: PointerEvent) {
   const c = carry
-  if (!c || !frozen) return
+  if (!c || !frozen || e.pointerId !== carryId) return
   if (!c.moved && strayed(c, e)) c.moved = true
 
   if (c.type === 'gate' || c.type === 'pickGate') {
@@ -413,90 +444,21 @@ function stateEditAt(c: { type: 'add'; value: QubitValue } | { type: 'sep' }, e:
   return spliceRow(source, p.y < cy ? 1 : source.split('\n').length + 1, glyphOf(c.value))
 }
 
-function onUp(e: PointerEvent) {
-  window.removeEventListener('pointermove', onMove)
-  window.removeEventListener('pointercancel', onCancel)
-  window.removeEventListener('keydown', onKey)
-  const c = carry
-  carry = null
-  hideChip()
-  if (!c) return
+/* -- what a tap does, shared by pointer taps and the keyboard -------------- */
 
-  const tap = isTap(c, e) // decided by the release point, so jitter is still a tap
-
-  // pick: a tap toggles the qubit; a real drag commits the move/remove.
-  if (c.type === 'pick') {
-    const edit = dragPreview
-    dragPreview = null
-    if (tap) {
-      const t = setQubit(source, c.spot.at, nextQubit(c.spot.value))
-      t ? setSource(t.source) : draw()
-    } else if (edit) setSource(edit.source)
-    else draw()
-    return
-  }
-
-  // pickGate: a tap cycles a controlled gate's control; a drag moves/removes it.
-  if (c.type === 'pickGate') {
-    const edit = dragPreview
-    dragPreview = null
-    if (tap) {
-      const spun = frozen?.doc ? cycleTarget(source, frozen.doc, c.gate) : null
-      spun ? setSource(spun.source) : draw()
-    } else if (edit) setSource(edit.source)
-    else draw()
-    return
-  }
-
-  // gate from the palette: a tap drops it in at the bottom; a drag places it.
-  if (c.type === 'gate') {
-    const edit = dragPreview
-    dragPreview = null
-    if (tap) {
-      const e2 = tapAddGate(c.drop)
-      e2 ? setSource(e2.source) : draw()
-    } else if (edit) setSource(edit.source)
-    else draw()
-    return
-  }
-
-  if (c.type === 'pickSep') {
-    const edit = dragPreview
-    dragPreview = null
-    edit ? setSource(edit.source) : draw()
-    return
-  }
-
-  // add / sep from the palette
-  const edit = dragPreview
-  dragPreview = null
-  if (tap) {
-    if (c.type === 'sep') {
-      if (source) pendingTerm = !pendingTerm // tap arms a new term
-      draw()
-    } else {
-      const at = appendOffset(result?.qubitSpots ?? [])
-      const e2 = insertQubit(source, at, c.value, pendingTerm && !!source)
-      pendingTerm = false
-      e2 ? setSource(e2.source) : draw()
-    }
-  } else if (edit) {
-    setSource(edit.source)
-    if (c.type === 'sep') pendingTerm = false
-  } else draw()
+/** Add a qubit at the end of the state (a new term when the `|` is armed). */
+function tapQubit(value: QubitValue): Edit | null {
+  const at = appendOffset(result?.qubitSpots ?? [])
+  const edit = insertQubit(source, at, value, pendingTerm && !!source)
+  pendingTerm = false
+  return edit
 }
-
-function onKey(e: KeyboardEvent) {
-  if (e.key !== 'Escape' || !carry) return
-  window.removeEventListener('pointermove', onMove)
-  window.removeEventListener('pointercancel', onCancel)
-  carry = null
-  dragPreview = null
-  hideChip()
+/** Arm the separator, so the next qubit starts a new superposition term. */
+function tapSeparator() {
+  if (source) pendingTerm = !pendingTerm
   draw()
 }
-
-// A tapped gate drops in at the bottom of the circuit (a new gate row).
+/** A tapped gate drops in at the bottom of the circuit (a new gate row). */
 function tapAddGate(drop: Droppable): Edit | null {
   if (!source) return { source: gateLine(drop, 1, 0), line: 1 }
   let doc: CircuitDoc
@@ -511,6 +473,70 @@ function tapAddGate(drop: Droppable): Edit | null {
   } catch {
     return null
   }
+}
+/** Commit an edit, or say so when the block had nowhere to go. */
+function commit(edit: Edit | null) {
+  if (edit) setSource(edit.source)
+  else {
+    draw()
+    toast('That block has nowhere to go there')
+  }
+}
+
+function onUp(e: PointerEvent) {
+  if (e.pointerId !== carryId) return
+  const c = releaseCarry()
+  if (!c) return
+
+  const tap = isTap(c, e) // decided by the release point, so jitter is still a tap
+  const edit = dragPreview
+  dragPreview = null
+
+  // pick: a tap toggles the qubit; a real drag commits the move/remove.
+  if (c.type === 'pick') {
+    if (tap) {
+      const t = setQubit(source, c.spot.at, nextQubit(c.spot.value))
+      t ? setSource(t.source) : draw()
+    } else commit(edit)
+    return
+  }
+
+  // pickGate: a tap cycles a controlled gate's control; a drag moves/removes it.
+  if (c.type === 'pickGate') {
+    if (tap) {
+      // A gate with no control to move (an H, say) simply has nothing to cycle.
+      const spun = frozen?.doc ? cycleTarget(source, frozen.doc, c.gate) : null
+      spun ? setSource(spun.source) : draw()
+    } else commit(edit)
+    return
+  }
+
+  // gate from the palette: a tap drops it in at the bottom; a drag places it.
+  if (c.type === 'gate') {
+    commit(tap ? tapAddGate(c.drop) : edit)
+    return
+  }
+
+  if (c.type === 'pickSep') {
+    commit(edit)
+    return
+  }
+
+  // add / sep from the palette
+  if (tap) {
+    if (c.type === 'sep') tapSeparator()
+    else commit(tapQubit(c.value))
+  } else if (c.type === 'sep' && edit) {
+    setSource(edit.source)
+    pendingTerm = false
+  } else commit(edit)
+}
+
+function onKey(e: KeyboardEvent) {
+  if (e.key !== 'Escape' || !carry) return
+  releaseCarry()
+  dragPreview = null
+  draw()
 }
 
 // ---------- palette ----------
@@ -529,13 +555,26 @@ function tile(cls: string, face: string, cap: string) {
   b.innerHTML = `<span class="face">${face}</span><span class="cap">${cap}</span>`
   return b
 }
+/**
+ * Enter and Space on a focused tile do what a tap does.
+ *
+ * The tiles are dragged with pointer events, which the keyboard has no way to
+ * produce — so a keyboard-generated click (`detail === 0`, no mouse behind it)
+ * is routed to the same tap action a finger gets.
+ */
+function onKeyActivate(el: HTMLElement, run: () => void) {
+  el.addEventListener('click', (e) => {
+    if ((e as MouseEvent).detail === 0) run()
+  })
+}
 function buildPalette() {
   const qWrap = $('qubits')
   QUBITS.forEach((q, i) => {
     const t = tile('qubit', swatch(q.glyph, { qubit: 26 }, 'q' + i), q.cap)
     t.addEventListener('pointerdown', (e) =>
-      startCarry({ type: 'add', value: q.v, x0: e.clientX, y0: e.clientY, moved: false, label: q.glyph }, e),
+      startCarry({ type: 'add', value: q.v, x0: e.clientX, y0: e.clientY, moved: false }, e),
     )
+    onKeyActivate(t, () => commit(tapQubit(q.v)))
     qWrap.appendChild(t)
   })
   // The superposition separator sits on the same row as the qubits.
@@ -545,6 +584,7 @@ function buildPalette() {
   termTile.addEventListener('pointerdown', (e) =>
     startCarry({ type: 'sep', x0: e.clientX, y0: e.clientY, moved: false }, e),
   )
+  onKeyActivate(termTile, tapSeparator)
   qWrap.appendChild(termTile)
 
   const gWrap = $('gates')
@@ -553,8 +593,9 @@ function buildPalette() {
     const face = swatch(item.source || item.code, GM, 'g' + i)
     const t = tile('gate', face, cap)
     t.addEventListener('pointerdown', (e) =>
-      startCarry({ type: 'gate', drop: item.drop, head: cap, face, x0: e.clientX, y0: e.clientY, moved: false }, e),
+      startCarry({ type: 'gate', drop: item.drop, face, x0: e.clientX, y0: e.clientY, moved: false }, e),
     )
+    onKeyActivate(t, () => commit(tapAddGate(item.drop)))
     gWrap.appendChild(t)
   })
 }
@@ -573,7 +614,7 @@ figureEl.addEventListener('pointerdown', (e) => {
   }
   const g = gateUnder(e)
   if (g) {
-    startCarry({ type: 'pickGate', gate: g.gate, head: CAP[asDroppable(g.gate).head] || asDroppable(g.gate).head, x0: e.clientX, y0: e.clientY, moved: false }, e, g.doc)
+    startCarry({ type: 'pickGate', gate: g.gate, x0: e.clientX, y0: e.clientY, moved: false }, e, g.doc)
     return
   }
   exporting = true // empty press: let the native drag export a PNG

@@ -1,6 +1,8 @@
 /**
- * Building a *state* by dropping blocks onto it — the one edit the core drawing
- * library can't do yet (it drags gates, not qubits).
+ * Building a *state* by dropping blocks onto it.
+ *
+ * The drawing library edits circuits — it drops gates onto wires — but has no
+ * notion of building the *state* itself, so that lives here.
  *
  * Like the circuit editor, every edit is expressed as new source *text*, which
  * is then re-parsed and re-drawn: there is one representation, so nothing to
@@ -17,7 +19,7 @@ import { gateLine, insertGate, parseCircuit } from 'misty-states/kernel'
 import type { CircuitDoc, DropTarget, Droppable, Edit, QubitSpot } from 'misty-states/kernel'
 
 export type QubitValue = QubitSpot['value']
-export interface Point {
+interface Point {
   x: number
   y: number
 }
@@ -66,8 +68,9 @@ function buildRows(doc: CircuitDoc, geo: DropGeo): Row[] {
   const rows: Row[] = []
   if (doc.input) rows.push({ kind: 'state', cy: geo.startY, li: -1 })
   doc.layers.forEach((layer, i) => {
-    const view = layer.gates.length > 0 && layer.gates.every((g) => g.kind === 'view')
     const gl = geo.layers[i]
+    if (!gl) return // geometry is short of the document: nothing to point at
+    const view = layer.gates.length > 0 && layer.gates.every((g) => g.kind === 'view')
     rows.push({ kind: view ? 'state' : 'gate', cy: gl.y + gl.h / 2, li: i })
   })
   if (doc.output?.length) rows.push({ kind: 'state', cy: geo.endY, li: -2 })
@@ -199,19 +202,6 @@ function parses(source: string): boolean {
   }
 }
 
-/** The input state is line 0; its text and where it ends in the source. */
-function inputLine(source: string): { text: string; end: number } {
-  const nl = source.indexOf('\n')
-  return { text: nl === -1 ? source : source.slice(0, nl), end: nl === -1 ? source.length : nl }
-}
-
-/** True if splicing would leave an empty superposition term (`||`, leading/trailing `|`). */
-function ragged(source: string): boolean {
-  const { text } = inputLine(source)
-  const body = text.replace(/^(in |out )/, '')
-  return /\|\s*\||^\s*\||\|\s*$/.test(body)
-}
-
 /**
  * Where, in source offset, a dropped block belongs — from the qubits on screen
  * and the point aimed at, both in the drawing's own coordinates.
@@ -249,14 +239,14 @@ export function appendOffset(spots: QubitSpot[]): number {
 export function insertQubit(source: string, at: number, value: QubitValue, newTerm = false): Edit | null {
   const ins = (newTerm ? '|' : '') + charOf(value)
   const next = source.slice(0, at) + ins + source.slice(at)
-  if (ragged(next) || !parses(next)) return null
+  if (!parses(next)) return null
   return { source: next, line: lineOf(next, at) }
 }
 
 /** Splice a superposition separator at `at`. Refused where it would empty a term. */
-export function insertSeparator(source: string, at: number): Edit | null {
+function insertSeparator(source: string, at: number): Edit | null {
   const next = source.slice(0, at) + '|' + source.slice(at)
-  if (ragged(next) || !parses(next)) return null
+  if (!parses(next)) return null
   return { source: next, line: lineOf(next, at) }
 }
 
@@ -273,7 +263,7 @@ export function dropSeparator(source: string, at: number): Edit | null {
   const rightIsQubit = after !== undefined && '01?'.includes(after)
   const ins = rightIsQubit ? '0|' : '|0'
   const next = source.slice(0, at) + ins + source.slice(at)
-  if (ragged(next) || !parses(next)) return null
+  if (!parses(next)) return null
   return { source: next, line: lineOf(next, at) }
 }
 
@@ -283,7 +273,7 @@ export function moveQubit(source: string, from: number, value: QubitValue, to: n
   const cut = source.slice(0, from) + source.slice(from + 1)
   const at = to > from ? to - 1 : to // the removal shifts everything after it left
   const next = cut.slice(0, at) + charOf(value) + cut.slice(at)
-  if (next === source || ragged(next) || !parses(next)) return null
+  if (next === source || !parses(next)) return null
   return { source: next, line: lineOf(next, at) }
 }
 
@@ -291,7 +281,7 @@ export function moveQubit(source: string, from: number, value: QubitValue, to: n
 export function removeSeparator(source: string, at: number): Edit | null {
   if (source[at] !== '|') return null
   const cut = source.slice(0, at) + source.slice(at + 1)
-  if (ragged(cut) || !parses(cut)) return null
+  if (!parses(cut)) return null
   return { source: cut, line: lineOf(cut, at) }
 }
 
@@ -301,7 +291,7 @@ export function moveSeparator(source: string, from: number, to: number): Edit | 
   const cut = source.slice(0, from) + source.slice(from + 1)
   const at = to > from ? to - 1 : to // the removal shifts everything after it left
   const next = cut.slice(0, at) + '|' + cut.slice(at)
-  if (next === source || ragged(next) || !parses(next)) return null
+  if (next === source || !parses(next)) return null
   return { source: next, line: lineOf(next, at) }
 }
 

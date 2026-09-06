@@ -25,9 +25,16 @@ just drawing.
 
 ```bash
 npm install
-npm run dev      # http://localhost:5199
-npm run build    # static site in dist/
+npm run dev        # http://localhost:5199
+npm run dev:https  # self-signed TLS, so a phone can use the clipboard
+npm run check      # typecheck + tests
+npm run build      # static site in dist/
 ```
+
+`npm test` drives a real browser (Playwright) through the drags the app is made
+of — building states, dropping gates on every row, moving and deleting blocks,
+the keyboard path, and the exported PNG — because nearly all of the logic here is
+geometry, and geometry is only honest when something actually points at it.
 
 The drawing itself is done by [misty_states](https://github.com/mgrau/misty_states)
 (`../misty_states`), aliased at build time; check both out as siblings.

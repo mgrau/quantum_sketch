@@ -4,8 +4,10 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client", "node"],
     "strict": true,
-    "noUnusedLocals": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "skipLibCheck": true,
     "isolatedModules": true,
     "noEmit": true,
@@ -15,7 +17,6 @@
       "misty-states": ["../misty_states/src/core/api.ts"],
       "misty-states/render": ["../misty_states/src/core/index.ts"],
       "misty-states/kernel": ["../misty_states/src/core/kernel.ts"],
-      "misty-states/ui": ["../misty_states/src/core/ui/board.ts"],
       "misty-states/metadata": ["../misty_states/src/core/metadata.ts"],
       "misty-states/encode": ["../misty_states/src/core/render/encode.ts"]
     }

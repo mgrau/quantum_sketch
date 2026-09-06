@@ -1,8 +1,6 @@
 import { defineConfig } from 'vite'
 import { fileURLToPath, URL } from 'node:url'
-// To test clipboard copy on a phone, re-enable HTTPS: add
-//   import basicSsl from '@vitejs/plugin-basic-ssl'
-// and put `basicSsl()` in `plugins` below (the dep is already installed).
+import basicSsl from '@vitejs/plugin-basic-ssl'
 
 // The drawing library lives next door as source. Alias its published subpaths
 // straight at that source so the dev server transforms it with full HMR — no
@@ -10,13 +8,17 @@ import { fileURLToPath, URL } from 'node:url'
 // the `file:../misty_states` dependency; the alias is the reliable dev path.)
 const lib = (p: string) => fileURLToPath(new URL(p, import.meta.url))
 
+// `HTTPS=1 npm run dev` serves over self-signed TLS, which a phone on the LAN
+// needs before the browser will hand out the clipboard image API.
+const https = !!process.env.HTTPS
+
 export default defineConfig({
   base: './', // served under a sub-path or inside a Canvas iframe
+  plugins: https ? [basicSsl()] : [],
   resolve: {
     alias: {
       'misty-states/render': lib('../misty_states/src/core/index.ts'),
       'misty-states/kernel': lib('../misty_states/src/core/kernel.ts'),
-      'misty-states/ui': lib('../misty_states/src/core/ui/board.ts'),
       'misty-states/metadata': lib('../misty_states/src/core/metadata.ts'),
       'misty-states/encode': lib('../misty_states/src/core/render/encode.ts'),
       'misty-states': lib('../misty_states/src/core/api.ts'),

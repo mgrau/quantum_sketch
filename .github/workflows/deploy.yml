@@ -14,6 +14,11 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
+env:
+  # The drawing library this app is built against. `main` follows the library;
+  # set a tag or commit SHA here to pin the deployed site to a known-good one.
+  MISTY_REF: main
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -28,6 +33,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: mgrau/misty_states
+          ref: ${{ env.MISTY_REF }}
           path: misty_states
       - uses: actions/setup-node@v4
         with:
@@ -35,6 +41,16 @@ jobs:
       - name: Install
         working-directory: quantum_sketch
         run: npm ci
+      - name: Typecheck
+        working-directory: quantum_sketch
+        run: npm run typecheck
+      # The gate that matters: the library is followed unpinned, so a change
+      # over there must prove itself here before the students' site moves.
+      - name: Test
+        working-directory: quantum_sketch
+        run: |
+          npx playwright install --with-deps chromium
+          npm test
       - name: Build
         working-directory: quantum_sketch
         run: npm run build
