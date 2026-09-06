@@ -205,32 +205,39 @@ await drag(mid(await qubitTile().boundingBox()), {
 check('a qubit between gates is a snapshot', await src(), '0\nH 1\n0\nX 1\n0')
 
 // ---------- controls cycle ----------
+// Built by keyboard and clicked on the gate's own element: this is about what a
+// click does to a control, not about hitting a coordinate.
 console.log('\ncontrolled gates')
-await clear()
-for (let i = 0; i < 3; i++) {
-  const b = await geo()
-  const to = b ? { x: b.spots[b.spots.length - 1].x + 45, y: b.spots[0].y } : centre
-  await drag(mid(await qubitTile().boundingBox()), to)
+const placedGate = () =>
+  page.locator('#figure svg [data-key]:not([data-key^="pipe:"]):not([data-key^="state:"])').first()
+/** Click the middle of the drawn gate. Raw mouse, because the gate's own parts
+ *  count as "intercepting" its group and Playwright would refuse the click. */
+async function clickPlacedGate() {
+  const bb = await placedGate().boundingBox()
+  await page.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2)
+  await page.waitForTimeout(110)
 }
-check('a three-qubit register', await src(), '000')
-await drag(mid(await gateTile('Fredkin').boundingBox()), centre)
-check('drop a Fredkin', await src(), '000\nCSWAP 2 3 4')
-g = await geo()
-await page.mouse.click(g.colX[1], g.layers[0].mid)
-await page.waitForTimeout(90)
-check('click walks the swap control', await src(), '000\nCSWAP 3 2 4')
-await clear()
-for (let i = 0; i < 3; i++) {
-  const b = await geo()
-  const to = b ? { x: b.spots[b.spots.length - 1].x + 45, y: b.spots[0].y } : centre
-  await drag(mid(await qubitTile().boundingBox()), to)
+async function buildRegisterAndGate(cap) {
+  await clear()
+  for (let i = 0; i < 3; i++) {
+    await qubitTile().focus()
+    await page.keyboard.press('Enter')
+  }
+  await gateTile(cap).focus()
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(120)
 }
-await drag(mid(await gateTile('CCNOT').boundingBox()), centre)
-check('drop a CCNOT', await src(), '000\nTOFFOLI 2 3 4')
-g = await geo()
-await page.mouse.click(g.colX[1], g.layers[0].mid)
-await page.waitForTimeout(90)
-check('click walks the CCNOT target', await src(), '000\nTOFFOLI 3 4 2')
+await buildRegisterAndGate('Fredkin')
+check('a Fredkin over a three-qubit register', await src(), '000\nCSWAP 1 2 3')
+await clickPlacedGate()
+check('click walks the swap control', await src(), '000\nCSWAP 2 1 3')
+await clickPlacedGate()
+check('and again, to the next wire', await src(), '000\nCSWAP 3 1 2')
+
+await buildRegisterAndGate('CCNOT')
+check('a CCNOT over a three-qubit register', await src(), '000\nTOFFOLI 1 2 3')
+await clickPlacedGate()
+check('click walks the CCNOT target', await src(), '000\nTOFFOLI 2 3 1')
 
 // ---------- keyboard ----------
 console.log('\nkeyboard')
