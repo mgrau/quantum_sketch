@@ -210,29 +210,12 @@ check('a qubit between gates is a snapshot', await src(), '0\nH 1\n0\nX 1\n0')
 console.log('\ncontrolled gates')
 const placedGate = () =>
   page.locator('#figure svg [data-key]:not([data-key^="pipe:"]):not([data-key^="state:"])').first()
-/**
- * Click the drawn gate. Raw mouse, because the gate's own parts count as
- * "intercepting" its group and Playwright would refuse the click.
- *
- * A swap is drawn as a thin bar, and where that bar sits inside the group's box
- * moves by a pixel or two between renderers — so a few points across the gate
- * are tried and the first one that lands wins. What is being tested is that
- * clicking the gate cycles its control, not the exact pixel it happens at.
- */
+/** Click the middle of the drawn gate. Raw mouse, because the gate's own parts
+ *  count as "intercepting" its group and Playwright would refuse the click. */
 async function clickPlacedGate() {
-  const before = await src()
   const bb = await placedGate().boundingBox()
-  const points = [
-    [bb.x + bb.width / 2, bb.y + bb.height / 2],
-    [bb.x + bb.width / 2, bb.y + bb.height * 0.35],
-    [bb.x + bb.width / 2, bb.y + bb.height * 0.65],
-    [bb.x + bb.width * 0.3, bb.y + bb.height / 2],
-  ]
-  for (const [x, y] of points) {
-    await page.mouse.click(x, y)
-    await page.waitForTimeout(110)
-    if ((await src()) !== before) return
-  }
+  await page.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2)
+  await page.waitForTimeout(110)
 }
 async function buildRegisterAndGate(cap) {
   await clear()
